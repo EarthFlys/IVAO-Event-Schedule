@@ -29,13 +29,13 @@ const App = (() => {
 
         // ── Page transition: fade out ──
         app.classList.add('page-exit');
-        await new Promise(r => setTimeout(r, 80));
+        await new Promise(r => setTimeout(r, 60));
 
         // Route matching
         if (hash === '/' || hash === '') {
-            app.innerHTML = await renderDashboard();
+            renderDashboard(app);
         } else if (hash === '/calendar') {
-            app.innerHTML = await CalendarView.render();
+            CalendarView.render(app);
         } else if (hash === '/atc-booking') {
             app.innerHTML = renderATCBooking();
         } else if (hash === '/create') {
@@ -52,10 +52,10 @@ const App = (() => {
                 return;
             }
             const id = hash.replace('/edit/', '');
-            app.innerHTML = await renderEditForm(id);
+            renderEditForm(id, app);
         } else if (hash.startsWith('/event/')) {
             const id = hash.replace('/event/', '');
-            app.innerHTML = await renderEventDetail(id);
+            renderEventDetail(id, app);
         } else {
             app.innerHTML = Components.emptyState('Page Not Found', 'The page you are looking for does not exist.');
         }
@@ -68,7 +68,7 @@ const App = (() => {
                 app.classList.add('page-enter-active');
                 setTimeout(() => {
                     app.classList.remove('page-enter', 'page-enter-active');
-                }, 200);
+                }, 150);
             });
         });
 
@@ -77,27 +77,8 @@ const App = (() => {
     }
 
     // ── Dashboard ──────────────────────────────────────────────
-    async function renderDashboard() {
-        let statsHtml = '';
-        let eventsHtml = Components.skeletonCards(3);
-
-        try {
-            const stats = await EventsAPI.getStats();
-            statsHtml = Components.statsBar(stats);
-        } catch (e) {
-            statsHtml = '';
-        }
-
-        try {
-            const events = await EventsAPI.getAll(filters);
-            eventsHtml = events.length === 0
-                ? Components.emptyState('No events found', 'Check back later for upcoming events.')
-                : '<div class="events-grid">' + events.map((ev, i) => Components.eventCard(ev, i)).join('') + '</div>';
-        } catch (e) {
-            eventsHtml = Components.emptyState('Error loading events', e.message);
-        }
-
-        return `
+    function renderDashboard(app) {
+        app.innerHTML = `
             <section class="page-hero">
                 <div class="container">
                     <h1 class="page-hero-title">Event Dashboard</h1>
@@ -105,10 +86,23 @@ const App = (() => {
                 </div>
             </section>
             <div class="container page-wrapper">
-                ${statsHtml}
+                <div id="dashboard-stats-container"></div>
                 ${Components.filterBar(filters.type, filters.status)}
-                <div id="events-container">${eventsHtml}</div>
+                <div id="events-container">${Components.skeletonCards(3)}</div>
             </div>`;
+
+        setTimeout(async () => {
+            try {
+                const stats = await EventsAPI.getStats();
+                const statsContainer = document.getElementById('dashboard-stats-container');
+                if (statsContainer) {
+                    statsContainer.innerHTML = Components.statsBar(stats);
+                    if (window.lucide) lucide.createIcons();
+                }
+            } catch (e) {}
+            
+            loadDashboard();
+        }, 0);
     }
 
     async function loadDashboard() {
@@ -127,13 +121,26 @@ const App = (() => {
     }
 
     // ── Event Detail ───────────────────────────────────────────
-    async function renderEventDetail(id) {
-        try {
-            const event = await EventsAPI.getById(id);
-            return renderDetailHtml(event);
-        } catch (e) {
-            return Components.emptyState('Event not found', 'This event may have been deleted.');
-        }
+    function renderEventDetail(id, app) {
+        app.innerHTML = `
+            <div class="container page-wrapper" style="padding-top:40px;">
+                ${Components.skeletonCards(1)}
+            </div>`;
+            
+        setTimeout(async () => {
+            try {
+                const event = await EventsAPI.getById(id);
+                if (window.location.hash === '#/event/' + id) {
+                    app.innerHTML = renderDetailHtml(event);
+                    if (window.lucide) lucide.createIcons();
+                }
+            } catch (e) {
+                if (window.location.hash === '#/event/' + id) {
+                    app.innerHTML = Components.emptyState('Event not found', 'This event may have been deleted.');
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        }, 0);
     }
 
     function renderDetailHtml(event) {
@@ -291,13 +298,32 @@ const App = (() => {
     // ── Create / Edit Form ─────────────────────────────────────
     function renderCreateForm() { return renderFormHtml(null); }
 
-    async function renderEditForm(id) {
-        try {
-            const event = await EventsAPI.getById(id);
-            return renderFormHtml(event);
-        } catch (e) {
-            return Components.emptyState('Event not found');
-        }
+    function renderEditForm(id, app) {
+        app.innerHTML = `
+            <section class="page-hero">
+                <div class="container">
+                    <h1 class="page-hero-title">Edit Event</h1>
+                    <p class="page-hero-sub">Loading event details...</p>
+                </div>
+            </section>
+            <div class="container page-wrapper">
+                ${Components.skeletonCards(1)}
+            </div>`;
+
+        setTimeout(async () => {
+            try {
+                const event = await EventsAPI.getById(id);
+                if (window.location.hash === '#/edit/' + id) {
+                    app.innerHTML = renderFormHtml(event);
+                    if (window.lucide) lucide.createIcons();
+                }
+            } catch (e) {
+                if (window.location.hash === '#/edit/' + id) {
+                    app.innerHTML = Components.emptyState('Event not found');
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        }, 0);
     }
 
     function renderFormHtml(event) {

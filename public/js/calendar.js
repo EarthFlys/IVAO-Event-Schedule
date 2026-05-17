@@ -21,16 +21,10 @@ const CalendarView = (() => {
     }
 
     // ── Render Calendar Page ───────────────────────────────────
-    async function render() {
+    function render(app) {
         init();
 
-        try {
-            events = await EventsAPI.getAll();
-        } catch (err) {
-            events = [];
-        }
-
-        return `
+        app.innerHTML = `
             <section class="page-hero">
                 <div class="container">
                     <h1 class="page-hero-title">Event Calendar</h1>
@@ -55,11 +49,22 @@ const CalendarView = (() => {
                         </div>
                     </div>
                     <div class="calendar-grid" id="calendar-grid">
-                        ${buildGrid()}
+                        <div style="padding:40px;text-align:center;grid-column:1/-1;">Loading calendar...</div>
                     </div>
                 </div>
             </div>
         `;
+
+        setTimeout(async () => {
+            try {
+                events = await EventsAPI.getAll();
+            } catch (err) {
+                events = [];
+            }
+            if (window.location.hash === '#/calendar') {
+                refreshGrid();
+            }
+        }, 0);
     }
 
     // ── Build Calendar Grid ────────────────────────────────────
