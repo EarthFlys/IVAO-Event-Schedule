@@ -5,6 +5,10 @@ const { v4: uuidv4 } = require('uuid');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
+// ─── Staff Configuration ──────────────────────────────────────
+// Divisions whose staff members can manage events
+const STAFF_DIVISIONS = ['TH', 'XE', 'IN'];
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -48,6 +52,59 @@ function requireAuth(req, res, next) {
     next();
 }
 
+// ─── Staff Verification Middleware ─────────────────────────────
+// Calls IVAO API to verify user's staff position in allowed divisions
+async function requireStaff(req, res, next) {
+    const token = req.headers.authorization;
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+    try {
+        const userRes = await fetch('https://api.ivao.aero/v2/users/me', {
+            headers: { Authorization: token }
+        });
+
+        if (!userRes.ok) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        const data = await userRes.json();
+
+        // Collect all staff positions
+        const staffPositions = data.staffPositions || data.userStaffPositions || [];
+        const singleStaff = data.staff || null;
+        const allPositions = [...staffPositions];
+        if (singleStaff && singleStaff.divisionId) {
+            allPositions.push(singleStaff);
+        }
+
+        // Check if user holds a position in an allowed division
+        const hasStaffRole = allPositions.some(pos => {
+            const div = (pos.divisionId || pos.division || '').toUpperCase();
+            return STAFF_DIVISIONS.includes(div);
+        }) || data.isStaff === true;
+
+        if (!hasStaffRole) {
+            return res.status(403).json({
+                error: 'Forbidden — Event Staff role required',
+                detail: `Only staff members in divisions ${STAFF_DIVISIONS.join(', ')} can perform this action.`
+            });
+        }
+
+        // Attach user info to request for downstream use
+        req.ivaoUser = {
+            vid: data.id,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            division: data.divisionId,
+            isStaff: true
+        };
+        next();
+    } catch (err) {
+        console.error('Staff verification error:', err);
+        return res.status(500).json({ error: 'Failed to verify staff role' });
+    }
+}
+
 // ─── Health Check ──────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
@@ -85,6 +142,45 @@ app.post('/api/auth/token', async (req, res) => {
     } catch (err) {
         console.error('Token exchange error:', err);
         res.status(500).json({ error: 'Token exchange failed' });
+    }
+});
+
+// ─── User Profile Proxy (for debugging / role check) ──────────
+app.get('/api/auth/me', async (req, res) => {
+    const token = req.headers.authorization;
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+    try {
+        const response = await fetch('https://api.ivao.aero/v2/users/me', {
+            headers: { Authorization: token }
+        });
+        const data = await response.json();
+        if (!response.ok) return res.status(response.status).json(data);
+
+        // Determine staff status for the client
+        const staffPositions = data.staffPositions || data.userStaffPositions || [];
+        const singleStaff = data.staff || null;
+        const allPositions = [...staffPositions];
+        if (singleStaff && singleStaff.divisionId) allPositions.push(singleStaff);
+
+        const staffInAllowedDiv = allPositions.find(pos => {
+            const div = (pos.divisionId || pos.division || '').toUpperCase();
+            return STAFF_DIVISIONS.includes(div);
+        });
+
+        res.json({
+            vid: data.id,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            divisionId: data.divisionId,
+            isStaff: !!staffInAllowedDiv || data.isStaff === true,
+            staffPositions: allPositions,
+            matchedDivision: staffInAllowedDiv ? (staffInAllowedDiv.divisionId || staffInAllowedDiv.division) : null,
+            allowedDivisions: STAFF_DIVISIONS
+        });
+    } catch (err) {
+        console.error('Profile fetch error:', err);
+        res.status(500).json({ error: 'Failed to fetch profile' });
     }
 });
 
@@ -215,7 +311,7 @@ app.get('/api/events/:id', async (req, res) => {
     }
 });
 
-app.post('/api/events', requireAuth, async (req, res) => {
+app.post('/api/events', requireStaff, async (req, res) => {
     try {
         const id = uuidv4();
         const newEvent = {
@@ -230,7 +326,7 @@ app.post('/api/events', requireAuth, async (req, res) => {
     }
 });
 
-app.put('/api/events/:id', requireAuth, async (req, res) => {
+app.put('/api/events/:id', requireStaff, async (req, res) => {
     try {
         const ref = eventsCol().doc(req.params.id);
         const doc = await ref.get();
@@ -245,7 +341,7 @@ app.put('/api/events/:id', requireAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/events/:id', requireAuth, async (req, res) => {
+app.delete('/api/events/:id', requireStaff, async (req, res) => {
     try {
         const ref = eventsCol().doc(req.params.id);
         const doc = await ref.get();

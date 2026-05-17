@@ -48,7 +48,7 @@ const Components = (() => {
                     <button class="btn btn-primary btn-sm btn-full" onclick="navigateTo('/event/${event.id}')">
                         <i data-lucide="eye"></i> View Details
                     </button>
-                    ${window.IVAOAuth && window.IVAOAuth.isLoggedIn() ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); App.deleteEvent('${event.id}')" title="Delete Event">
+                    ${window.IVAOAuth && window.IVAOAuth.isStaff() ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); App.deleteEvent('${event.id}')" title="Delete Event (Staff only)">
                         <i data-lucide="trash-2"></i>
                     </button>` : ''}
                 </div>

@@ -47,8 +47,10 @@ const EventsAPI = (() => {
 
     async function create(eventData) {
         const user = IVAOAuth.getUser();
+        const token = IVAOAuth.getToken();
         return request(`${BASE}/events`, {
             method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: JSON.stringify({
                 ...eventData,
                 createdBy: user?.vid || 'unknown',
@@ -58,15 +60,19 @@ const EventsAPI = (() => {
     }
 
     async function update(id, eventData) {
+        const token = IVAOAuth.getToken();
         return request(`${BASE}/events/${id}`, {
             method: 'PUT',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: JSON.stringify(eventData)
         });
     }
 
     async function remove(id) {
+        const token = IVAOAuth.getToken();
         return request(`${BASE}/events/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
     }
 

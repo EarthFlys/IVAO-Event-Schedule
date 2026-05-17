@@ -1,6 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
-   auth.js — IVAO OAuth 2.0 + PKCE Authentication
+   auth.js — IVAO OAuth 2.0 + PKCE Authentication + Role Detection
    ═══════════════════════════════════════════════════════════════ */
+
+// ── Staff Configuration ────────────────────────────────────────
+// Divisions whose staff members can manage events
+const STAFF_DIVISIONS = ['TH', 'XE', 'IN'];
 
 const IVAOAuth = (() => {
     // auth.js บรรทัด 6-7
@@ -121,17 +125,52 @@ const params = new URLSearchParams({
             }
 
             const data = await res.json();
+
+            // ── Detect Staff Role ─────────────────────────────
+            // IVAO API can return staff info in several ways:
+            //   data.staff           — single staff object { divisionId, positionId, ... }
+            //   data.staffPositions   — array of staff positions
+            //   data.userStaffPositions — alternative key
+            const staffPositions = data.staffPositions || data.userStaffPositions || [];
+            const singleStaff = data.staff || null;
+
+            // Build a normalised list of all staff positions
+            const allPositions = [...staffPositions];
+            if (singleStaff && singleStaff.divisionId) {
+                allPositions.push(singleStaff);
+            }
+
+            // Check if user holds a staff position in an allowed division
+            const staffInAllowedDiv = allPositions.find(pos => {
+                const div = (pos.divisionId || pos.division || '').toUpperCase();
+                return STAFF_DIVISIONS.includes(div);
+            });
+
+            const isStaffMember = !!staffInAllowedDiv || data.isStaff === true;
+
+            // Determine the staff role label for UI display
+            let staffRole = null;
+            if (staffInAllowedDiv) {
+                const posId = staffInAllowedDiv.staffPositionId || staffInAllowedDiv.positionId || staffInAllowedDiv.position || '';
+                const div = (staffInAllowedDiv.divisionId || staffInAllowedDiv.division || '').toUpperCase();
+                staffRole = posId ? `${div}-${posId}` : `${div} Staff`;
+            }
+
             currentUser = {
                 id: data.id,
                 vid: data.id,
                 firstName: data.firstName || '',
                 lastName: data.lastName || '',
-                division: data.divisionId || '',
+                division: (data.divisionId || '').toUpperCase(),
                 rating: data.rating || {},
-                staff: data.staff || null,
-                isAdmin: !!(data.staff && (data.staff.divisionId === 'TH' || data.isStaff))
+                staff: singleStaff,
+                staffPositions: allPositions,
+                isStaff: isStaffMember,
+                staffRole: staffRole,
+                isAdmin: isStaffMember   // alias for backward compat
             };
 
+            console.log(`✅ User loaded: VID ${currentUser.vid}, Staff: ${isStaffMember}${staffRole ? ' (' + staffRole + ')' : ''}`);
             updateAuthUI();
             return currentUser;
 
@@ -162,19 +201,32 @@ const params = new URLSearchParams({
 
         if (currentUser) {
             const initials = (currentUser.firstName[0] || '') + (currentUser.lastName[0] || '');
+            const staffBadge = currentUser.isStaff
+                ? `<span class="staff-badge" title="Event Staff — ${escapeHtml(currentUser.staffRole || 'Staff')}">
+                     <i data-lucide="shield-check" style="width:12px;height:12px;"></i>
+                     ${escapeHtml(currentUser.staffRole || 'Staff')}
+                   </span>`
+                : `<span class="member-badge" title="IVAO Member">
+                     <i data-lucide="user" style="width:12px;height:12px;"></i>
+                     Member
+                   </span>`;
+
             authArea.innerHTML = `
                 <div class="user-menu" onclick="document.getElementById('user-dropdown')?.classList.toggle('hidden')" title="${escapeHtml(currentUser.firstName)} ${escapeHtml(currentUser.lastName)} (${currentUser.vid})">
-                    <div class="user-avatar">${escapeHtml(initials.toUpperCase())}</div>
-                    <span>${escapeHtml(currentUser.firstName)}</span>
+                    <div class="user-avatar${currentUser.isStaff ? ' staff' : ''}">${escapeHtml(initials.toUpperCase())}</div>
+                    <div class="user-info">
+                        <span class="user-name">${escapeHtml(currentUser.firstName)}</span>
+                        ${staffBadge}
+                    </div>
                 </div>
                 <button class="nav-btn nav-btn-ghost" onclick="IVAOAuth.logout()" title="Logout">
                     <i data-lucide="log-out"></i>
                 </button>
             `;
 
-            // Show create link for all logged-in users
+            // Show create link only for staff members
             if (createLink) {
-                createLink.style.display = 'flex';
+                createLink.style.display = currentUser.isStaff ? 'flex' : 'none';
             }
         } else {
             authArea.innerHTML = `
@@ -212,7 +264,8 @@ const params = new URLSearchParams({
         init,
         getUser: () => currentUser,
         isLoggedIn: () => !!currentUser,
-        isAdmin: () => currentUser?.isAdmin || false,
+        isStaff: () => currentUser?.isStaff || false,
+        isAdmin: () => currentUser?.isAdmin || false, // alias
         getToken: () => localStorage.getItem('ivao_token')
     };
 })();

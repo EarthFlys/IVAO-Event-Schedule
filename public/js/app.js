@@ -35,15 +35,15 @@ const App = (() => {
         } else if (hash === '/atc-booking') {
             app.innerHTML = await renderATCBooking();
         } else if (hash === '/create') {
-            if (!IVAOAuth.isLoggedIn()) {
-                showToast('Please login to create events', 'warning');
+            if (!IVAOAuth.isStaff()) {
+                showToast('Only Event Staff can create events', 'warning');
                 navigateTo('/');
                 return;
             }
             app.innerHTML = renderCreateForm();
         } else if (hash.startsWith('/edit/')) {
-            if (!IVAOAuth.isLoggedIn()) {
-                showToast('Please login to edit events', 'warning');
+            if (!IVAOAuth.isStaff()) {
+                showToast('Only Event Staff can edit events', 'warning');
                 navigateTo('/');
                 return;
             }
@@ -159,9 +159,9 @@ const App = (() => {
             </tr>`;
         }).join('');
 
-        const adminHtml = IVAOAuth.isLoggedIn() ? `
+        const adminHtml = IVAOAuth.isStaff() ? `
             <div class="detail-card">
-                <div class="detail-card-title"><i data-lucide="settings"></i> Actions</div>
+                <div class="detail-card-title"><i data-lucide="settings"></i> Staff Actions</div>
                 <div style="display:flex;flex-direction:column;gap:8px;">
                     <button class="btn btn-secondary btn-full" onclick="navigateTo('/edit/${event.id}')">
                         <i data-lucide="pencil"></i> Edit Event

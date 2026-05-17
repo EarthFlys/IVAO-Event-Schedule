@@ -333,8 +333,66 @@ input, select, textarea {
   max-width: 180px;
 }
 
-.user-menu span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-menu:hover { background: var(--surface-hover); border-color: rgba(66, 165, 245, .4); }
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.user-name {
+  font-size: .83rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Staff avatar glow */
+.user-avatar.staff {
+  background: linear-gradient(135deg, #b8860b, #ffd700, #daa520);
+  border-color: rgba(255, 215, 0, .5);
+  box-shadow: 0 0 10px rgba(255, 215, 0, .25);
+}
+
+/* Staff Badge */
+.staff-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, rgba(255, 215, 0, .15), rgba(218, 165, 32, .1));
+  color: #ffd700;
+  border: 1px solid rgba(255, 215, 0, .25);
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+/* Member Badge */
+.member-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, .05);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  line-height: 1.5;
+}
 
 #auth-area { display: flex; align-items: center; gap: 6px; }
 
