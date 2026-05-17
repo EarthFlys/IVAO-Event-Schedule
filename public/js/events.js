@@ -8,10 +8,12 @@ const EventsAPI = (() => {
     // ── Fetch helpers ──────────────────────────────────────────
     async function request(url, options = {}) {
         try {
+            const token = IVAOAuth.getToken();
             const res = await fetch(url, {
                 ...options,
                 headers: {
                     'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
                     ...options.headers
                 }
             });
