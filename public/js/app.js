@@ -491,8 +491,8 @@ const App = (() => {
             imageUrl: formData.get('imageUrl') || '/image/hero_banner.png',
             departureIcao: (formData.get('departureIcao') || '').toUpperCase(),
             arrivalIcao: (formData.get('arrivalIcao') || '').toUpperCase(),
-            dateStart: new Date(formData.get('dateStart')).toISOString(),
-            dateEnd: new Date(formData.get('dateEnd')).toISOString(),
+            dateStart: new Date(formData.get('dateStart') + 'Z').toISOString(),
+            dateEnd: new Date(formData.get('dateEnd') + 'Z').toISOString(),
             slots
         };
 
@@ -618,9 +618,17 @@ const App = (() => {
             });
             if (res.ok) {
                 const data = await res.json();
-                const count = data?.clients?.pilots?.length || 0;
-                const el = document.getElementById('live-count');
-                if (el) el.textContent = count.toLocaleString();
+                const pilots = data?.clients?.pilots?.length || 0;
+                const atcs = data?.clients?.atcs?.length || 0;
+                const total = pilots + atcs;
+
+                const elPilot = document.getElementById('live-pilot-count');
+                const elAtc = document.getElementById('live-atc-count');
+                const elTotal = document.getElementById('live-total-count');
+
+                if (elPilot) elPilot.textContent = pilots.toLocaleString();
+                if (elAtc) elAtc.textContent = atcs.toLocaleString();
+                if (elTotal) elTotal.textContent = total.toLocaleString();
             }
         } catch (_) { /* silent fail */ }
     }

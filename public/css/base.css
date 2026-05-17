@@ -243,19 +243,51 @@ input, select, textarea {
   flex-shrink: 0;
 }
 
-/* Live Badge */
+/* Live Badges Group */
+.live-badges-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .live-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 4px 10px;
+  border-radius: 99px;
+  font-size: .73rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.live-badge:hover {
+  transform: translateY(-1px);
+}
+
+.live-badge-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.live-badge-pilot {
+  background: var(--blue-bg);
+  border: 1px solid var(--border-blue);
+  color: var(--ivao-accent);
+}
+
+.live-badge-atc {
+  background: var(--purple-bg);
+  border: 1px solid rgba(168, 85, 247, .20);
+  color: var(--purple);
+}
+
+.live-badge-total {
   background: var(--green-bg);
   border: 1px solid var(--green-border);
-  border-radius: 99px;
-  font-size: .75rem;
-  font-weight: 600;
   color: var(--green);
-  white-space: nowrap;
 }
 
 .live-dot {
@@ -1574,7 +1606,8 @@ select.form-input {
    RESPONSIVE — TABLET
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 1024px) {
-  .nav-link span, .live-badge { display: none; }
+  .nav-link span { display: none; }
+  .live-badge-pilot, .live-badge-atc { display: none; }
   .stats-bar { grid-template-columns: repeat(2, 1fr); }
   .event-detail-layout { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
@@ -1616,7 +1649,7 @@ select.form-input {
   .nav-link span { display: block; }
 
   .nav-mobile-toggle { display: flex; }
-  .live-badge { display: none; }
+  .live-badges-group { display: none; }
 
   .user-menu { max-width: 140px; padding: 2px 10px 2px 3px; }
   .user-menu span { font-size: .78rem; }

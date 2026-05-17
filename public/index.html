@@ -61,9 +61,19 @@
             </div>
 
             <div class="nav-actions">
-                <div class="live-badge" id="live-badge" title="Pilots online now">
-                    <span class="live-dot"></span>
-                    <span id="live-count">--</span> Online
+                <div class="live-badges-group">
+                    <div class="live-badge live-badge-pilot" title="Pilots online now">
+                        <i data-lucide="plane" class="live-badge-icon"></i>
+                        <span id="live-pilot-count">--</span>
+                    </div>
+                    <div class="live-badge live-badge-atc" title="ATC online now">
+                        <i data-lucide="radio-tower" class="live-badge-icon"></i>
+                        <span id="live-atc-count">--</span>
+                    </div>
+                    <div class="live-badge live-badge-total" title="Total connections">
+                        <span class="live-dot"></span>
+                        <span id="live-total-count">--</span> Online
+                    </div>
                 </div>
 
                 <a href="https://github.com/ivaoaero" target="_blank" class="nav-btn nav-btn-ghost" title="GitHub">
