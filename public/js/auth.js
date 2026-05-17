@@ -4,8 +4,8 @@
 
 const IVAOAuth = (() => {
     // auth.js บรรทัด 6-7
-    const CLIENT_ID = '57b2d957-38ff-4d1e-8d8f-7e5aa8d0d5fe'; // ← ใช้ตัวนี้ถ้านี่คือแอปจริงบน Vercel
-    const REDIRECT_URI = window.location.origin;  // http://localhost:3000 (no trailing slash)
+    const CLIENT_ID = '69a4c5c9-6472-45d0-8f41-6d3f0ed4a3f1'; // ← ใช้ตัวนี้ถ้านี่คือแอปจริงบน Vercel
+    const REDIRECT_URI = window.location.origin;
     const AUTH_URL = 'https://sso.ivao.aero/authorize';
     const USER_URL = 'https://api.ivao.aero/v2/users/me';
 

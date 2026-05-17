@@ -2,27 +2,33 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ─── MongoDB ───────────────────────────────────────────────────
+// ─── MongoDB (Serverless-safe connection pooling) ──────────────
 const MONGO_URI = process.env.MONGODB_URI;
-let db = null;
 
-async function getDB() {
-    if (db) return db;
+// Cache client across warm invocations on Vercel
+let cachedClient = null;
+
+async function getClient() {
+    if (cachedClient) return cachedClient;
     if (!MONGO_URI) throw new Error('MONGODB_URI environment variable is not set');
-    const client = await MongoClient.connect(MONGO_URI);
-    db = client.db('ivao-events');
-    console.log('✅ Connected to MongoDB Atlas');
-    return db;
+    const client = new MongoClient(MONGO_URI, {
+        serverSelectionTimeoutMS: 5000,
+        maxPoolSize: 10,
+    });
+    await client.connect();
+    cachedClient = client;
+    console.log('✅ Connected to MongoDB');
+    return client;
 }
 
 async function getCollection() {
-    const database = await getDB();
-    return database.collection('events');
+    const client = await getClient();
+    return client.db('ivao-events').collection('events');
 }
 
 // ─── Middleware ────────────────────────────────────────────────
@@ -31,11 +37,16 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/image', express.static(path.join(__dirname, 'image')));
 
+// ─── Health Check ──────────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
 // ─── OAuth Proxy ───────────────────────────────────────────────
 app.post('/api/auth/token', async (req, res) => {
     const { code, code_verifier, redirect_uri } = req.body;
-    const CLIENT_ID = process.env.IVAO_CLIENT_ID || '57b2d957-38ff-4d1e-8d8f-7e5aa8d0d5fe';
-    const CLIENT_SECRET = process.env.IVAO_CLIENT_SECRET || '521ZGZ3ofWWOJcBmx6nuAeJZQBMHvsn3';
+    const CLIENT_ID = process.env.IVAO_CLIENT_ID || '69a4c5c9-6472-45d0-8f41-6d3f0ed4a3f1';
+    const CLIENT_SECRET = process.env.IVAO_CLIENT_SECRET || 'UECHIQjlWfTZAF0c7WrDmWWVpjFf2mqQ';
 
     try {
         const params = new URLSearchParams({
@@ -131,7 +142,6 @@ app.delete('/api/atc/bookings/:id', async (req, res) => {
 
 // ─── Events API ────────────────────────────────────────────────
 
-// GET all events
 app.get('/api/events', async (req, res) => {
     try {
         const col = await getCollection();
@@ -151,7 +161,6 @@ app.get('/api/events', async (req, res) => {
 
         let events = await col.find(query).toArray();
 
-        // Filter by status
         if (status && status !== 'all') {
             const now = new Date();
             events = events.filter(e => {
@@ -164,29 +173,30 @@ app.get('/api/events', async (req, res) => {
             });
         }
 
-        // Sort by dateStart ascending
         events.sort((a, b) => new Date(a.dateStart) - new Date(b.dateStart));
+
+        // Remove MongoDB _id from response
+        events = events.map(({ _id, ...e }) => e);
 
         res.json(events);
     } catch (err) {
         console.error('GET /api/events error:', err);
-        res.status(500).json({ error: 'Failed to fetch events' });
+        res.status(500).json({ error: 'Failed to fetch events', detail: err.message });
     }
 });
 
-// GET single event
 app.get('/api/events/:id', async (req, res) => {
     try {
         const col = await getCollection();
         const event = await col.findOne({ id: req.params.id });
         if (!event) return res.status(404).json({ error: 'Event not found' });
-        res.json(event);
+        const { _id, ...e } = event;
+        res.json(e);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch event' });
     }
 });
 
-// POST create event
 app.post('/api/events', async (req, res) => {
     try {
         const col = await getCollection();
@@ -194,17 +204,16 @@ app.post('/api/events', async (req, res) => {
             id: uuidv4(),
             ...req.body,
             createdAt: new Date().toISOString(),
-            status: 'upcoming'
         };
         await col.insertOne(newEvent);
-        res.status(201).json(newEvent);
+        const { _id, ...e } = newEvent;
+        res.status(201).json(e);
     } catch (err) {
         console.error('POST /api/events error:', err);
         res.status(500).json({ error: 'Failed to create event' });
     }
 });
 
-// PUT update event
 app.put('/api/events/:id', async (req, res) => {
     try {
         const col = await getCollection();
@@ -218,13 +227,13 @@ app.put('/api/events/:id', async (req, res) => {
         );
 
         if (!result) return res.status(404).json({ error: 'Event not found' });
-        res.json(result);
+        const { _id, ...e } = result;
+        res.json(e);
     } catch (err) {
         res.status(500).json({ error: 'Failed to update event' });
     }
 });
 
-// DELETE event
 app.delete('/api/events/:id', async (req, res) => {
     try {
         const col = await getCollection();
@@ -236,7 +245,6 @@ app.delete('/api/events/:id', async (req, res) => {
     }
 });
 
-// POST book slot
 app.post('/api/events/:id/book', async (req, res) => {
     try {
         const col = await getCollection();
@@ -249,17 +257,17 @@ app.post('/api/events/:id/book', async (req, res) => {
         if (event.slots[slotIndex].userId)
             return res.status(400).json({ error: 'Slot already booked' });
 
-        event.slots[slotIndex].userId = userId;
+        event.slots[slotIndex].userId = String(userId);
         event.slots[slotIndex].userName = userName;
 
         await col.updateOne({ id: req.params.id }, { $set: { slots: event.slots } });
-        res.json(event);
+        const { _id, ...e } = event;
+        res.json(e);
     } catch (err) {
         res.status(500).json({ error: 'Failed to book slot' });
     }
 });
 
-// POST unbook slot
 app.post('/api/events/:id/unbook', async (req, res) => {
     try {
         const col = await getCollection();
@@ -269,14 +277,15 @@ app.post('/api/events/:id/unbook', async (req, res) => {
         const { slotIndex, userId } = req.body;
         if (slotIndex < 0 || slotIndex >= event.slots.length)
             return res.status(400).json({ error: 'Invalid slot index' });
-        if (event.slots[slotIndex].userId !== userId)
+        if (String(event.slots[slotIndex].userId) !== String(userId))
             return res.status(403).json({ error: 'Not your booking' });
 
         event.slots[slotIndex].userId = null;
         event.slots[slotIndex].userName = null;
 
         await col.updateOne({ id: req.params.id }, { $set: { slots: event.slots } });
-        res.json(event);
+        const { _id, ...e } = event;
+        res.json(e);
     } catch (err) {
         res.status(500).json({ error: 'Failed to unbook slot' });
     }
