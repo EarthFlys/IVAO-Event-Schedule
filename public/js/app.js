@@ -29,7 +29,7 @@ const App = (() => {
 
         // ── Page transition: fade out ──
         app.classList.add('page-exit');
-        await new Promise(r => setTimeout(r, 180));
+        await new Promise(r => setTimeout(r, 80));
 
         // Route matching
         if (hash === '/' || hash === '') {
@@ -68,7 +68,7 @@ const App = (() => {
                 app.classList.add('page-enter-active');
                 setTimeout(() => {
                     app.classList.remove('page-enter', 'page-enter-active');
-                }, 400);
+                }, 200);
             });
         });
 
