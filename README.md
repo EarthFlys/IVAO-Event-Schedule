@@ -1,86 +1,72 @@
-# IVAO Event Scheduler — Fixed & Improved
+# IVAO-Event-Schedule
 
-## 🐛 Bug Fixes
-
-### 1. MongoDB Connection (serverless-safe)
-**Problem:** `MongoClient.connect()` ถูกเรียกใหม่ทุก request บน Vercel serverless — ทำให้ connection หมด
-**Fix:** Cache `client` ไว้ใน module-level variable (`cachedClient`) แทนที่จะสร้างใหม่ทุกครั้ง
-
-```js
-// server.js — fixed
-let cachedClient = null;
-async function getClient() {
-    if (cachedClient) return cachedClient;  // ← reuse ถ้ามีอยู่แล้ว
-    ...
-    cachedClient = client;
-    return client;
-}
-```
-
-### 2. _id ไม่ถูก strip ออกจาก response
-**Fix:** ทุก response ที่ return จาก MongoDB จะ destructure `_id` ออก:
-```js
-const { _id, ...e } = event;
-res.json(e);
-```
-
-### 3. Slot booking — userId type mismatch
-**Problem:** `slot.userId` เก็บเป็น number แต่เปรียบกับ string
-**Fix:** ทั้งฝั่ง server และ client ใช้ `String(userId)` ก่อนเปรียบเทียบ
-
-### 4. Admin check
-**Problem:** เดิมแสดงปุ่ม Edit/Delete เฉพาะ `isAdmin()` — แต่ admin check อิง IVAO staff ซึ่งหลายคนไม่เห็น
-**Fix:** ให้ทุกคนที่ login เห็นปุ่มจัดการ (ปรับตาม requirement จริงได้)
+IVAO Event Team Schedule System for Asia Division Staff
 
 ---
 
-## 🎨 UI Improvements
+## 📌 About
 
-- **ดีไซน์ดูดี** — สีเข้มกว่า, gradient ละเอียด, spacing สม่ำเสมอ
-- **Cards** — hover effect ดีขึ้น, image zoom, route badge เด่นขึ้น
-- **Status pills** — border + background แยกกันชัด (live/upcoming/completed)
-- **Slots table** — progress bar บนสุด, type badge มีสีตาม ATC/Pilot
-- **ATC Booking** — info banner แทน plain text
-- **Toast** — border-left color coding, animation เรียบ
-- **Modal** — animation, footer bg ต่างกัน
-- **Loading** — logo glow effect
-- **Live count** — ดึงจาก IVAO API จริง (pilots online)
-- **Footer** — gradient ละเอียด, link hover slide
+**IVAO-Event-Schedule** is an internal scheduling and planning system designed specifically for the Asia Event Team Staff within the IVAO network.
+
+This platform is primarily used by the following divisions:
+
+* 🇹🇭 Thailand (TH)
+* 🇭🇰 / 🇲🇴 East Asia (XE)
+* 🇮🇳 India (IN)
+* 🇮🇩 Indonesia (ID)
+
+The system helps our staff coordinate and manage:
+
+* Event planning
+* ATC booking schedules
+* Internal staff operations
+* Cross-division event coordination
+* Timeline management
+* Staff task organization
 
 ---
 
-## 📁 Project Structure
+## ⚠️ Important Notice
 
-```
-ivao-scheduler/
-├── server.js              ← fixed MongoDB pooling
-├── package.json
-├── vercel.json
-└── public/
-    ├── index.html         ← fixed paths, onerror fallback
-    ├── css/
-    │   └── base.css       ← redesigned
-    └── js/
-        ├── utils.js
-        ├── auth.js
-        ├── events.js
-        ├── calendar.js
-        ├── components.js
-        └── app.js         ← fixed all functions, better UX
-```
+Please note that this system is intended **only for IVAO Asia Event Team staff members**.
 
-## 🚀 Deploy to Vercel
+Access and usage are restricted to authorized personnel from participating Asia divisions.
+If your division or team would like to use this system or collaborate with us, please contact the Asia Event Team directly.
 
-1. Set environment variables ใน Vercel dashboard:
-   - `MONGODB_URI` = MongoDB Atlas connection string
-   - `IVAO_CLIENT_ID` = OAuth client ID
-   - `IVAO_CLIENT_SECRET` = OAuth client secret
+---
 
-2. `vercel deploy`
+## 📬 Contact
 
-## 🔧 Local Development
+For inquiries, support, or collaboration requests:
 
-```bash
-npm install
-MONGODB_URI=... IVAO_CLIENT_ID=... IVAO_CLIENT_SECRET=... node server.js
-```
+* 📧 [th-event@ivao.aero](mailto:th-event@ivao.aero)
+* 📧 [narongrit.sittisuonjit@ivao.aero](mailto:narongrit.sittisuonjit@ivao.aero)
+
+---
+
+## 🌏 Supported Divisions
+
+| Division       | Status |
+| -------------- | ------ |
+| TH - Thailand  | Active |
+| XE - East Asia | Active |
+| IN - India     | Active |
+| ID - Indonesia | Active |
+
+---
+
+## 🛠️ Purpose of the Project
+
+The goal of this project is to improve coordination efficiency between Asia Event Teams and provide a centralized platform for event operations across multiple IVAO divisions.
+
+---
+
+## 🔒 Internal Use Only
+
+This repository may contain internal planning structures, operational workflows, and staff-related information intended solely for IVAO staff usage.
+
+Please do not redistribute or publish confidential materials without authorization.
+
+---
+
+### Developed for the IVAO Asia Event Team ❤️
