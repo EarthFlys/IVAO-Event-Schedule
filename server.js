@@ -41,6 +41,13 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/image', express.static(path.join(__dirname, 'image')));
 
+// ─── Auth Middleware ───────────────────────────────────────────
+function requireAuth(req, res, next) {
+    const token = req.headers.authorization;
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+    next();
+}
+
 // ─── Health Check ──────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
@@ -159,7 +166,6 @@ app.get('/api/events', async (req, res) => {
         const { type, status, search } = req.query;
         let query = eventsCol();
 
-        // Firestore filter by type
         let snapshot;
         if (type && type !== 'all') {
             snapshot = await query.where('type', '==', type).get();
@@ -169,7 +175,6 @@ app.get('/api/events', async (req, res) => {
 
         let events = snapshot.docs.map(docToEvent);
 
-        // Search filter (client-side)
         if (search) {
             const q = search.toLowerCase();
             events = events.filter(e =>
@@ -180,7 +185,6 @@ app.get('/api/events', async (req, res) => {
             );
         }
 
-        // Status filter (client-side)
         if (status && status !== 'all') {
             const now = new Date();
             events = events.filter(e => {
@@ -211,7 +215,7 @@ app.get('/api/events/:id', async (req, res) => {
     }
 });
 
-app.post('/api/events', async (req, res) => {
+app.post('/api/events', requireAuth, async (req, res) => {
     try {
         const id = uuidv4();
         const newEvent = {
@@ -226,7 +230,7 @@ app.post('/api/events', async (req, res) => {
     }
 });
 
-app.put('/api/events/:id', async (req, res) => {
+app.put('/api/events/:id', requireAuth, async (req, res) => {
     try {
         const ref = eventsCol().doc(req.params.id);
         const doc = await ref.get();
@@ -241,7 +245,7 @@ app.put('/api/events/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/events/:id', async (req, res) => {
+app.delete('/api/events/:id', requireAuth, async (req, res) => {
     try {
         const ref = eventsCol().doc(req.params.id);
         const doc = await ref.get();
