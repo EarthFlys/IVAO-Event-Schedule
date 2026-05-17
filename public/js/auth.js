@@ -47,7 +47,7 @@ const params = new URLSearchParams({
     redirect_uri: REDIRECT_URI, 
     code_challenge: challenge,
     code_challenge_method: 'S256',
-    scope: 'profile email atc_booking'
+    scope: 'profile email bookings:read bookings:write'
 });
 
         window.location.href = `${AUTH_URL}?${params.toString()}`;
