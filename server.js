@@ -2,33 +2,37 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { MongoClient } = require('mongodb');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ─── MongoDB (Serverless-safe connection pooling) ──────────────
-const MONGO_URI = process.env.MONGODB_URI;
+// ─── Firebase Admin Init ───────────────────────────────────────
+let db;
 
-// Cache client across warm invocations on Vercel
-let cachedClient = null;
+function getDB() {
+    if (db) return db;
 
-async function getClient() {
-    if (cachedClient) return cachedClient;
-    if (!MONGO_URI) throw new Error('MONGODB_URI environment variable is not set');
-    const client = new MongoClient(MONGO_URI, {
-        serverSelectionTimeoutMS: 5000,
-        maxPoolSize: 10,
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+    if (!projectId || !clientEmail || !privateKey) {
+        throw new Error('Missing Firebase environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY)');
+    }
+
+    initializeApp({
+        credential: cert({ projectId, clientEmail, privateKey })
     });
-    await client.connect();
-    cachedClient = client;
-    console.log('✅ Connected to MongoDB');
-    return client;
+
+    db = getFirestore();
+    console.log('✅ Connected to Firebase Firestore');
+    return db;
 }
 
-async function getCollection() {
-    const client = await getClient();
-    return client.db('ivao-events').collection('events');
+function eventsCol() {
+    return getDB().collection('events');
 }
 
 // ─── Middleware ────────────────────────────────────────────────
@@ -45,8 +49,12 @@ app.get('/api/health', (req, res) => {
 // ─── OAuth Proxy ───────────────────────────────────────────────
 app.post('/api/auth/token', async (req, res) => {
     const { code, code_verifier, redirect_uri } = req.body;
-    const CLIENT_ID = process.env.IVAO_CLIENT_ID || '69a4c5c9-6472-45d0-8f41-6d3f0ed4a3f1';
-    const CLIENT_SECRET = process.env.IVAO_CLIENT_SECRET || 'UECHIQjlWfTZAF0c7WrDmWWVpjFf2mqQ';
+    const CLIENT_ID = process.env.IVAO_CLIENT_ID;
+    const CLIENT_SECRET = process.env.IVAO_CLIENT_SECRET;
+
+    if (!CLIENT_ID || !CLIENT_SECRET) {
+        return res.status(500).json({ error: 'OAuth credentials not configured' });
+    }
 
     try {
         const params = new URLSearchParams({
@@ -140,27 +148,39 @@ app.delete('/api/atc/bookings/:id', async (req, res) => {
     }
 });
 
-// ─── Events API ────────────────────────────────────────────────
+// ─── Helper: doc to plain object ──────────────────────────────
+function docToEvent(doc) {
+    return { id: doc.id, ...doc.data() };
+}
 
+// ─── Events API ────────────────────────────────────────────────
 app.get('/api/events', async (req, res) => {
     try {
-        const col = await getCollection();
         const { type, status, search } = req.query;
+        let query = eventsCol();
 
-        const query = {};
-        if (type && type !== 'all') query.type = type;
-        if (search) {
-            const q = new RegExp(search, 'i');
-            query.$or = [
-                { title: q },
-                { departureIcao: q },
-                { arrivalIcao: q },
-                { description: q }
-            ];
+        // Firestore filter by type
+        let snapshot;
+        if (type && type !== 'all') {
+            snapshot = await query.where('type', '==', type).get();
+        } else {
+            snapshot = await query.get();
         }
 
-        let events = await col.find(query).toArray();
+        let events = snapshot.docs.map(docToEvent);
 
+        // Search filter (client-side)
+        if (search) {
+            const q = search.toLowerCase();
+            events = events.filter(e =>
+                (e.title || '').toLowerCase().includes(q) ||
+                (e.departureIcao || '').toLowerCase().includes(q) ||
+                (e.arrivalIcao || '').toLowerCase().includes(q) ||
+                (e.description || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Status filter (client-side)
         if (status && status !== 'all') {
             const now = new Date();
             events = events.filter(e => {
@@ -174,10 +194,6 @@ app.get('/api/events', async (req, res) => {
         }
 
         events.sort((a, b) => new Date(a.dateStart) - new Date(b.dateStart));
-
-        // Remove MongoDB _id from response
-        events = events.map(({ _id, ...e }) => e);
-
         res.json(events);
     } catch (err) {
         console.error('GET /api/events error:', err);
@@ -187,11 +203,9 @@ app.get('/api/events', async (req, res) => {
 
 app.get('/api/events/:id', async (req, res) => {
     try {
-        const col = await getCollection();
-        const event = await col.findOne({ id: req.params.id });
-        if (!event) return res.status(404).json({ error: 'Event not found' });
-        const { _id, ...e } = event;
-        res.json(e);
+        const doc = await eventsCol().doc(req.params.id).get();
+        if (!doc.exists) return res.status(404).json({ error: 'Event not found' });
+        res.json(docToEvent(doc));
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch event' });
     }
@@ -199,15 +213,13 @@ app.get('/api/events/:id', async (req, res) => {
 
 app.post('/api/events', async (req, res) => {
     try {
-        const col = await getCollection();
+        const id = uuidv4();
         const newEvent = {
-            id: uuidv4(),
             ...req.body,
             createdAt: new Date().toISOString(),
         };
-        await col.insertOne(newEvent);
-        const { _id, ...e } = newEvent;
-        res.status(201).json(e);
+        await eventsCol().doc(id).set(newEvent);
+        res.status(201).json({ id, ...newEvent });
     } catch (err) {
         console.error('POST /api/events error:', err);
         res.status(500).json({ error: 'Failed to create event' });
@@ -216,19 +228,14 @@ app.post('/api/events', async (req, res) => {
 
 app.put('/api/events/:id', async (req, res) => {
     try {
-        const col = await getCollection();
-        const update = { ...req.body, id: req.params.id };
-        delete update._id;
+        const ref = eventsCol().doc(req.params.id);
+        const doc = await ref.get();
+        if (!doc.exists) return res.status(404).json({ error: 'Event not found' });
 
-        const result = await col.findOneAndUpdate(
-            { id: req.params.id },
-            { $set: update },
-            { returnDocument: 'after' }
-        );
-
-        if (!result) return res.status(404).json({ error: 'Event not found' });
-        const { _id, ...e } = result;
-        res.json(e);
+        const update = { ...req.body };
+        await ref.set(update, { merge: true });
+        const updated = await ref.get();
+        res.json(docToEvent(updated));
     } catch (err) {
         res.status(500).json({ error: 'Failed to update event' });
     }
@@ -236,9 +243,10 @@ app.put('/api/events/:id', async (req, res) => {
 
 app.delete('/api/events/:id', async (req, res) => {
     try {
-        const col = await getCollection();
-        const result = await col.deleteOne({ id: req.params.id });
-        if (result.deletedCount === 0) return res.status(404).json({ error: 'Event not found' });
+        const ref = eventsCol().doc(req.params.id);
+        const doc = await ref.get();
+        if (!doc.exists) return res.status(404).json({ error: 'Event not found' });
+        await ref.delete();
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to delete event' });
@@ -247,11 +255,13 @@ app.delete('/api/events/:id', async (req, res) => {
 
 app.post('/api/events/:id/book', async (req, res) => {
     try {
-        const col = await getCollection();
-        const event = await col.findOne({ id: req.params.id });
-        if (!event) return res.status(404).json({ error: 'Event not found' });
+        const ref = eventsCol().doc(req.params.id);
+        const doc = await ref.get();
+        if (!doc.exists) return res.status(404).json({ error: 'Event not found' });
 
+        const event = doc.data();
         const { slotIndex, userId, userName } = req.body;
+
         if (slotIndex < 0 || slotIndex >= event.slots.length)
             return res.status(400).json({ error: 'Invalid slot index' });
         if (event.slots[slotIndex].userId)
@@ -260,9 +270,8 @@ app.post('/api/events/:id/book', async (req, res) => {
         event.slots[slotIndex].userId = String(userId);
         event.slots[slotIndex].userName = userName;
 
-        await col.updateOne({ id: req.params.id }, { $set: { slots: event.slots } });
-        const { _id, ...e } = event;
-        res.json(e);
+        await ref.update({ slots: event.slots });
+        res.json({ id: req.params.id, ...event });
     } catch (err) {
         res.status(500).json({ error: 'Failed to book slot' });
     }
@@ -270,11 +279,13 @@ app.post('/api/events/:id/book', async (req, res) => {
 
 app.post('/api/events/:id/unbook', async (req, res) => {
     try {
-        const col = await getCollection();
-        const event = await col.findOne({ id: req.params.id });
-        if (!event) return res.status(404).json({ error: 'Event not found' });
+        const ref = eventsCol().doc(req.params.id);
+        const doc = await ref.get();
+        if (!doc.exists) return res.status(404).json({ error: 'Event not found' });
 
+        const event = doc.data();
         const { slotIndex, userId } = req.body;
+
         if (slotIndex < 0 || slotIndex >= event.slots.length)
             return res.status(400).json({ error: 'Invalid slot index' });
         if (String(event.slots[slotIndex].userId) !== String(userId))
@@ -283,9 +294,8 @@ app.post('/api/events/:id/unbook', async (req, res) => {
         event.slots[slotIndex].userId = null;
         event.slots[slotIndex].userName = null;
 
-        await col.updateOne({ id: req.params.id }, { $set: { slots: event.slots } });
-        const { _id, ...e } = event;
-        res.json(e);
+        await ref.update({ slots: event.slots });
+        res.json({ id: req.params.id, ...event });
     } catch (err) {
         res.status(500).json({ error: 'Failed to unbook slot' });
     }
@@ -294,8 +304,8 @@ app.post('/api/events/:id/unbook', async (req, res) => {
 // ─── Stats ─────────────────────────────────────────────────────
 app.get('/api/stats', async (req, res) => {
     try {
-        const col = await getCollection();
-        const events = await col.find({}).toArray();
+        const snapshot = await eventsCol().get();
+        const events = snapshot.docs.map(docToEvent);
         const now = new Date();
 
         res.json({
@@ -323,7 +333,7 @@ if (!process.env.VERCEL) {
   ╔══════════════════════════════════════════════╗
   ║   ✈️  IVAO Event Scheduler                   ║
   ║   🌐 http://localhost:${PORT}                   ║
-  ║   📦 Backend API ready                       ║
+  ║   📦 Backend API ready (Firebase)            ║
   ╚══════════════════════════════════════════════╝
         `);
     });
