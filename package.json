@@ -1,0 +1,16 @@
+{
+  "name": "ivao-event-scheduler",
+  "version": "1.0.0",
+  "description": "IVAO Event Department Scheduler",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "mongodb": "^7.2.0",
+    "uuid": "^9.0.0"
+  }
+}
