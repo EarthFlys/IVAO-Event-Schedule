@@ -46,7 +46,7 @@ app.get('/api/health', (req, res) => {
 app.post('/api/auth/token', async (req, res) => {
     const { code, code_verifier, redirect_uri } = req.body;
     const CLIENT_ID = process.env.IVAO_CLIENT_ID || '69a4c5c9-6472-45d0-8f41-6d3f0ed4a3f1';
-    const CLIENT_SECRET = process.env.IVAO_CLIENT_SECRET || 'OPP8KbifqyND9tYRBnTqnAEwtmcXD492';
+    const CLIENT_SECRET = process.env.IVAO_CLIENT_SECRET || 'UECHIQjlWfTZAF0c7WrDmWWVpjFf2mqQ';
 
     try {
         const params = new URLSearchParams({
