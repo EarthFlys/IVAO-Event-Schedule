@@ -45,14 +45,14 @@ const IVAOAuth = (() => {
 
         sessionStorage.setItem('pkce_verifier', verifier);
 
-const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI, 
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    scope: 'profile email'   // ← ต้องเป็นแค่นี้
-});
+        const params = new URLSearchParams({
+            response_type: 'code',
+            client_id: CLIENT_ID,
+            redirect_uri: REDIRECT_URI,
+            code_challenge: challenge,
+            code_challenge_method: 'S256',
+            scope: 'profile email'   // ← ต้องเป็นแค่นี้
+        });
 
         window.location.href = `${AUTH_URL}?${params.toString()}`;
     }
