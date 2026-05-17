@@ -41,10 +41,54 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/image', express.static(path.join(__dirname, 'image')));
 
-// ─── Auth Middleware ───────────────────────────────────────────
-function requireAuth(req, res, next) {
-    const token = req.headers.authorization;
+// ─── Auth / Role Middleware ────────────────────────────────────
+const ALLOWED_EVENT_DIVISIONS = ['TH', 'XE', 'IN', 'ID'];
+
+function normalizeBearerToken(token) {
+    if (!token) return null;
+    return token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+}
+
+async function requireAuth(req, res, next) {
+    const token = normalizeBearerToken(req.headers.authorization);
     if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+    try {
+        const response = await fetch('https://api.ivao.aero/v2/users/me', {
+            headers: { Authorization: token }
+        });
+
+        const user = await response.json().catch(() => null);
+        if (!response.ok || !user) {
+            return res.status(401).json({ error: 'Invalid IVAO token' });
+        }
+
+        req.ivaoToken = token;
+        req.user = user;
+        next();
+    } catch (err) {
+        console.error('Auth middleware error:', err);
+        res.status(500).json({ error: 'Authentication failed' });
+    }
+}
+
+function isAsiaEventStaff(user) {
+    if (!user || user.isStaff !== true || !Array.isArray(user.userStaffPositions)) {
+        return false;
+    }
+
+    return user.userStaffPositions.some(position => {
+        const divisionId = position?.divisionId;
+        const departmentId = position?.staffPosition?.departmentTeam?.department?.id;
+        return ALLOWED_EVENT_DIVISIONS.includes(divisionId) && departmentId === 'EVENT';
+    });
+}
+
+function requireAsiaEventStaff(req, res, next) {
+    if (!isAsiaEventStaff(req.user)) {
+        return res.status(403).json({ error: 'Asia Event Staff access required' });
+    }
+
     next();
 }
 
@@ -106,12 +150,10 @@ app.get('/api/atc/bookings', async (req, res) => {
     }
 });
 
-app.get('/api/atc/bookings/me', async (req, res) => {
-    const token = req.headers.authorization;
-    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+app.get('/api/atc/bookings/me', requireAuth, async (req, res) => {
     try {
         const response = await fetch('https://api.ivao.aero/v2/users/me/atc/bookings', {
-            headers: { 'Authorization': token }
+            headers: { 'Authorization': req.ivaoToken }
         });
         const data = await response.json();
         if (!response.ok) return res.status(response.status).json(data);
@@ -121,13 +163,11 @@ app.get('/api/atc/bookings/me', async (req, res) => {
     }
 });
 
-app.post('/api/atc/bookings', async (req, res) => {
-    const token = req.headers.authorization;
-    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+app.post('/api/atc/bookings', requireAuth, requireAsiaEventStaff, async (req, res) => {
     try {
         const response = await fetch('https://api.ivao.aero/v2/atc/bookings', {
             method: 'POST',
-            headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': req.ivaoToken, 'Content-Type': 'application/json' },
             body: JSON.stringify(req.body)
         });
         const data = await response.json();
@@ -138,13 +178,11 @@ app.post('/api/atc/bookings', async (req, res) => {
     }
 });
 
-app.delete('/api/atc/bookings/:id', async (req, res) => {
-    const token = req.headers.authorization;
-    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+app.delete('/api/atc/bookings/:id', requireAuth, requireAsiaEventStaff, async (req, res) => {
     try {
         const response = await fetch(`https://api.ivao.aero/v2/atc/bookings/${req.params.id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': token }
+            headers: { 'Authorization': req.ivaoToken }
         });
         if (response.status === 204) return res.json({ success: true });
         const data = await response.json();
