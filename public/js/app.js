@@ -27,13 +27,17 @@ const App = (() => {
             );
         });
 
+        // ── Page transition: fade out ──
+        app.classList.add('page-exit');
+        await new Promise(r => setTimeout(r, 180));
+
         // Route matching
         if (hash === '/' || hash === '') {
             app.innerHTML = await renderDashboard();
         } else if (hash === '/calendar') {
             app.innerHTML = await CalendarView.render();
         } else if (hash === '/atc-booking') {
-            app.innerHTML = await renderATCBooking();
+            app.innerHTML = renderATCBooking();
         } else if (hash === '/create') {
             if (!IVAOAuth.isStaff()) {
                 showToast('Only Event Staff can create events', 'warning');
@@ -55,6 +59,18 @@ const App = (() => {
         } else {
             app.innerHTML = Components.emptyState('Page Not Found', 'The page you are looking for does not exist.');
         }
+
+        // ── Page transition: fade in ──
+        app.classList.remove('page-exit');
+        app.classList.add('page-enter');
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                app.classList.add('page-enter-active');
+                setTimeout(() => {
+                    app.classList.remove('page-enter', 'page-enter-active');
+                }, 400);
+            });
+        });
 
         if (window.lucide) lucide.createIcons();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -509,146 +525,81 @@ const App = (() => {
         if (window.lucide) lucide.createIcons();
     }
 
-    // ── ATC Booking Page ───────────────────────────────────────
-    async function renderATCBooking() {
-        const user = IVAOAuth.getUser();
-        let myBookingsHtml = '';
-
-        if (user) {
-            try {
-                const myBookings = await EventsAPI.getMyATCBookings();
-                if (Array.isArray(myBookings) && myBookings.length > 0) {
-                    myBookingsHtml = `
-                        <div class="detail-card section-gap">
-                            <div class="detail-card-title"><i data-lucide="user"></i> My Bookings</div>
-                            <table class="slots-table">
-                                <thead>
-                                    <tr><th>Position</th><th>Date</th><th>Time (UTC)</th><th>Type</th><th>Action</th></tr>
-                                </thead>
-                                <tbody>
-                                    ${myBookings.map(b => `
-                                        <tr>
-                                            <td><span class="slot-position">${escapeHtml(b.atcCallsign || b.position || 'N/A')}</span></td>
-                                            <td style="font-size:.82rem;">${b.start ? formatDate(b.start) : 'N/A'}</td>
-                                            <td style="font-size:.82rem;">${b.start ? formatTime(b.start) : ''} – ${b.end ? formatTime(b.end) : ''}</td>
-                                            <td><span class="tag blue">${escapeHtml(b.type || 'Standard')}</span></td>
-                                            <td><button class="btn btn-danger btn-sm" onclick="App.cancelATCBooking('${b.id}')">
-                                                <i data-lucide="x"></i> Cancel
-                                            </button></td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>`;
-                } else {
-                    myBookingsHtml = `<div class="detail-card section-gap">
-                        <div class="detail-card-title"><i data-lucide="user"></i> My Bookings</div>
-                        <p style="color:var(--text-muted);font-size:.88rem;">You have no active ATC bookings.</p>
-                    </div>`;
-                }
-            } catch (e) {
-                myBookingsHtml = `<div class="detail-card section-gap">
-                    <div class="detail-card-title"><i data-lucide="user"></i> My Bookings</div>
-                    <p style="color:var(--text-muted);font-size:.88rem;">Could not load bookings: ${escapeHtml(e.message)}</p>
-                </div>`;
-            }
-        }
-
-        const formHtml = user ? `
-            <div class="form-card section-gap">
-                <div class="form-card-title"><i data-lucide="plus-circle"></i> Create ATC Booking</div>
-                <form id="atc-booking-form" onsubmit="App.submitATCBooking(event)">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label class="form-label">ATC Position (Callsign) <span class="required">*</span></label>
-                            <input type="text" class="form-input font-mono" name="atcCallsign" required
-                                placeholder="e.g. VTBS_TWR" style="text-transform:uppercase;">
-                            <span class="form-hint">ICAO format — e.g. VTBD_GND, VTBS_APP</span>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Booking Type</label>
-                            <select class="form-input" name="type">
-                                <option value="standard">Standard</option>
-                                <option value="training">Training</option>
-                                <option value="exam">Examination</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Start Date/Time (UTC) <span class="required">*</span></label>
-                            <input type="datetime-local" class="form-input" name="start" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">End Date/Time (UTC) <span class="required">*</span></label>
-                            <input type="datetime-local" class="form-input" name="end" required>
-                        </div>
-                    </div>
-                    <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-                        <button type="submit" class="btn btn-primary">
-                            <i data-lucide="radio-tower"></i> Book Position
-                        </button>
-                    </div>
-                </form>
-            </div>` : `
-            <div class="detail-card section-gap" style="text-align:center;padding:48px 24px;">
-                <i data-lucide="lock" style="width:40px;height:40px;color:var(--text-muted);margin:0 auto 14px;display:block;"></i>
-                <h3 style="margin-bottom:6px;">Login Required</h3>
-                <p style="color:var(--text-muted);font-size:.88rem;margin-bottom:18px;">
-                    You need to log in with your IVAO account to manage ATC bookings.
-                </p>
-                <button class="btn btn-primary" onclick="IVAOAuth.login()">
-                    <i data-lucide="log-in"></i> Login with IVAO
-                </button>
-            </div>`;
-
+    // ── ATC Booking Landing Page ────────────────────────────────
+    function renderATCBooking() {
         return `
             <section class="page-hero">
                 <div class="container">
                     <h1 class="page-hero-title">ATC Booking</h1>
-                    <p class="page-hero-sub">Manage your ATC positions via IVAO ATC Service Center</p>
+                    <p class="page-hero-sub">Book and manage ATC positions via the official IVAO services</p>
                 </div>
             </section>
             <div class="container page-wrapper">
-                <div class="atc-info-banner">
-                    <i data-lucide="info"></i>
-                    <span>Bookings are synced with the official IVAO ATC Service Center.
-                        <a href="https://atc.ivao.aero" target="_blank" style="color:var(--ivao-accent);text-decoration:underline;">
-                            Open atc.ivao.aero
-                        </a> for full management.
-                    </span>
+                <div class="atc-landing">
+                    <!-- Hero Card -->
+                    <div class="atc-hero-card">
+                        <div class="atc-hero-icon">
+                            <i data-lucide="radio-tower"></i>
+                        </div>
+                        <h2 class="atc-hero-title">IVAO ATC Service Center</h2>
+                        <p class="atc-hero-desc">
+                            The official IVAO ATC booking system lets you reserve ATC positions,
+                            manage your schedule, and coordinate with other controllers.
+                        </p>
+                        <a href="https://atc.ivao.aero" target="_blank" class="btn btn-primary btn-lg atc-hero-btn">
+                            <i data-lucide="external-link"></i>
+                            Open ATC Booking System
+                        </a>
+                    </div>
+
+                    <!-- Quick Links Grid -->
+                    <div class="atc-links-grid">
+                        <a href="https://atc.ivao.aero" target="_blank" class="atc-link-card">
+                            <div class="atc-link-icon blue">
+                                <i data-lucide="calendar-plus"></i>
+                            </div>
+                            <div class="atc-link-body">
+                                <h3 class="atc-link-title">Book a Position</h3>
+                                <p class="atc-link-desc">Reserve an ATC position for your next session</p>
+                            </div>
+                            <i data-lucide="arrow-right" class="atc-link-arrow"></i>
+                        </a>
+
+                        <a href="https://webeye.ivao.aero" target="_blank" class="atc-link-card">
+                            <div class="atc-link-icon green">
+                                <i data-lucide="radar"></i>
+                            </div>
+                            <div class="atc-link-body">
+                                <h3 class="atc-link-title">WebEye — Live Map</h3>
+                                <p class="atc-link-desc">See real-time traffic and active ATC positions</p>
+                            </div>
+                            <i data-lucide="arrow-right" class="atc-link-arrow"></i>
+                        </a>
+
+                        <a href="https://fpl.ivao.aero" target="_blank" class="atc-link-card">
+                            <div class="atc-link-icon purple">
+                                <i data-lucide="route"></i>
+                            </div>
+                            <div class="atc-link-body">
+                                <h3 class="atc-link-title">Flight Plan Database</h3>
+                                <p class="atc-link-desc">Browse and create flight plans for your flights</p>
+                            </div>
+                            <i data-lucide="arrow-right" class="atc-link-arrow"></i>
+                        </a>
+
+                        <a href="https://wiki.ivao.aero" target="_blank" class="atc-link-card">
+                            <div class="atc-link-icon yellow">
+                                <i data-lucide="book-open"></i>
+                            </div>
+                            <div class="atc-link-body">
+                                <h3 class="atc-link-title">IVAO Wiki</h3>
+                                <p class="atc-link-desc">Documentation, SOPs, and training resources</p>
+                            </div>
+                            <i data-lucide="arrow-right" class="atc-link-arrow"></i>
+                        </a>
+                    </div>
                 </div>
-                ${myBookingsHtml}
-                ${formHtml}
             </div>`;
-    }
-
-    async function submitATCBooking(e) {
-        e.preventDefault();
-        const form = document.getElementById('atc-booking-form');
-        if (!form) return;
-        const formData = new FormData(form);
-        const bookingData = {
-            atcCallsign: formData.get('atcCallsign').toUpperCase(),
-            type: formData.get('type') || 'standard',
-            start: new Date(formData.get('start')).toISOString(),
-            end: new Date(formData.get('end')).toISOString()
-        };
-        try {
-            await EventsAPI.createATCBooking(bookingData);
-            showToast('ATC position booked!', 'success');
-            route();
-        } catch (err) {
-            showToast('Booking failed: ' + err.message, 'error');
-        }
-    }
-
-    async function cancelATCBooking(bookingId) {
-        try {
-            await EventsAPI.deleteATCBooking(bookingId);
-            showToast('ATC booking cancelled', 'info');
-            route();
-        } catch (err) {
-            showToast('Cancel failed: ' + err.message, 'error');
-        }
     }
 
     // ── Navbar Scroll Effect ───────────────────────────────────
@@ -699,9 +650,7 @@ const App = (() => {
         deleteEvent,
         confirmDelete,
         handleFormSubmit,
-        addSlotRow,
-        submitATCBooking,
-        cancelATCBooking
+        addSlotRow
     };
 })();
 

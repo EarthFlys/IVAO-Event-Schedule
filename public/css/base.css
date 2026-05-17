@@ -1676,3 +1676,213 @@ select.form-input {
   .calendar-day-name { font-size: .63rem; padding: 6px 2px; }
   .btn-lg { padding: 9px 16px; font-size: .85rem; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   PAGE TRANSITIONS
+   ══════════════════════════════════════════════════════════════ */
+.main-content {
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.main-content.page-exit {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.main-content.page-enter {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.main-content.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .35s cubic-bezier(.22, 1, .36, 1), transform .35s cubic-bezier(.22, 1, .36, 1);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ATC BOOKING LANDING PAGE
+   ══════════════════════════════════════════════════════════════ */
+.atc-landing {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Hero Card */
+.atc-hero-card {
+  text-align: center;
+  padding: 56px 32px 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.atc-hero-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% -10%, rgba(21, 101, 192, .12) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 80% 110%, rgba(66, 165, 245, .06) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.atc-hero-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--ivao-blue-dark), var(--ivao-blue-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 32px rgba(21, 101, 192, .35);
+  animation: heroIconFloat 4s ease-in-out infinite;
+}
+
+@keyframes heroIconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.atc-hero-icon svg {
+  width: 32px;
+  height: 32px;
+  color: #fff;
+}
+
+.atc-hero-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #f1f5ff 30%, var(--ivao-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.atc-hero-desc {
+  font-size: .9rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 480px;
+  margin: 0 auto 24px;
+}
+
+.atc-hero-btn {
+  padding: 12px 28px;
+  font-size: .95rem;
+  box-shadow: var(--shadow-blue);
+}
+
+.atc-hero-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 32px rgba(21, 101, 192, .4);
+}
+
+/* Quick Links Grid */
+.atc-links-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.atc-link-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+.atc-link-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  opacity: 0;
+  transition: opacity var(--transition);
+  border-radius: 99px;
+}
+
+.atc-link-card:nth-child(1)::before { background: var(--ivao-blue-light); }
+.atc-link-card:nth-child(2)::before { background: var(--green); }
+.atc-link-card:nth-child(3)::before { background: var(--purple); }
+.atc-link-card:nth-child(4)::before { background: var(--yellow); }
+
+.atc-link-card:hover {
+  background: var(--surface-raised);
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.atc-link-card:hover::before { opacity: 1; }
+
+.atc-link-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.atc-link-icon svg { width: 20px; height: 20px; }
+
+.atc-link-icon.blue { background: var(--blue-bg); color: var(--ivao-accent); }
+.atc-link-icon.green { background: var(--green-bg); color: var(--green); }
+.atc-link-icon.purple { background: var(--purple-bg); color: var(--purple); }
+.atc-link-icon.yellow { background: var(--yellow-bg); color: var(--yellow); }
+
+.atc-link-body { flex: 1; min-width: 0; }
+
+.atc-link-title {
+  font-size: .9rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+  color: var(--text-primary);
+}
+
+.atc-link-desc {
+  font-size: .78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.atc-link-arrow {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+
+.atc-link-card:hover .atc-link-arrow {
+  color: var(--ivao-accent);
+  transform: translateX(3px);
+}
+
+/* ATC Landing Responsive */
+@media (max-width: 640px) {
+  .atc-links-grid { grid-template-columns: 1fr; }
+  .atc-hero-card { padding: 36px 20px 32px; }
+  .atc-hero-title { font-size: 1.2rem; }
+  .atc-hero-icon { width: 56px; height: 56px; border-radius: 14px; }
+  .atc-hero-icon svg { width: 24px; height: 24px; }
+}
